@@ -1,11 +1,16 @@
 from pathlib import Path
 
+import matplotlib.pyplot as plt
+import seaborn as sns
 import torch
 import torch.nn as nn
 import torch.optim as optim
 
 from word2vec.ai.dataloader import FriendsDataLoader
 from word2vec.ai.dataset import FriendsDataset
+
+# Set Seaborn style
+sns.set_style("whitegrid")
 
 
 class SkipGramModel(nn.Module):
@@ -40,13 +45,15 @@ class W2V:
         self.model_path: Path | None = model_path
 
         self.embeddings = None
+        self.losses = []
 
     def train(self):
         for epoch in range(self.epochs):
             # Track the total loss for each epoch
-            total_loss = 0
+            epoch_loss = 0
 
-            for center_word, context_word in self.dataloader:
+            size = len(self.dataset)
+            for batch, (center_word, context_word) in enumerate(self.dataloader):
                 # Zero the gradients
                 self.optimizer.zero_grad()
 
@@ -59,14 +66,15 @@ class W2V:
                 # 4. Update the weights
                 self.optimizer.step()
 
-                total_loss += loss.item()
+                epoch_loss += loss.item()
+
+            # Store the average loss for the epoch
+            self.losses.append(epoch_loss / size)
 
             # Print loss every 10th epoch
-            if (epoch + 1) % 10 == 0:
-                total_samples = len(dataset) * (epoch + 1)
-                percentage_loss = (total_loss / total_samples) * 100
+            if epoch % 10 == 0:
                 print(
-                    f"Epoch [{epoch + 1}/{self.epochs}], Loss: {percentage_loss:.4f}%"
+                    f"Epoch [{epoch + 1}/{self.epochs}], Loss: {epoch_loss / size:.6f}"
                 )
 
         # Save the trained embeddings
@@ -79,6 +87,16 @@ class W2V:
     def load(self):
         print(f"Loading model from: {self.model_path}")
         self.model = torch.load(self.model_path)
+
+    def plot_loss(self):
+        # Plot the loss graph
+        plt.figure(figsize=(10, 6))
+        plt.plot(range(1, self.epochs + 1), w2v.losses, marker="o", linestyle="-")
+        plt.xlabel("Epoch")
+        plt.ylabel("Loss")
+        plt.title("Training Loss")
+        plt.grid(True)
+        plt.show()
 
     def similarity(self, word1: str, word2: str) -> float:
         # Get the trained embedding weights
@@ -100,7 +118,7 @@ class W2V:
         )
 
         print(f"Similarity between '{word1}' and '{word2}': {cosine_similarity:.2f}")
-        return cosine_similarity
+        return abs(cosine_similarity)
 
 
 if __name__ == "__main__":
@@ -109,16 +127,16 @@ if __name__ == "__main__":
 
     warnings.simplefilter("ignore", UserWarning)
 
-    # torch.manual_seed(42)
-    #
+    # # torch.manual_seed(42)
+
     file = Path("./dataset/S01E01 Monica Gets A Roommate.txt")
 
     print("-- FriendsDataset --")
-    dataset = FriendsDataset(file, window_size=3)
-    print(f"Number of samples: {len(dataset)}")
-    print(f"Vocab size: {len(dataset.vocab)}")
-    print(f"Window size: {dataset.window_size}")
-    #
+    friends_dataset = FriendsDataset(file, window_size=3)
+    print(f"Number of samples: {len(friends_dataset)}")
+    print(f"Vocab size: {len(friends_dataset.vocab)}")
+    print(f"Window size: {friends_dataset.window_size}")
+    # #
     # print("\n-- FriendsDataLoader --")
     # dataloader = FriendsDataLoader(dataset, batch_size=32, shuffle=True)
     # print(f"Batch size: {dataloader.batch_size}")
@@ -128,40 +146,39 @@ if __name__ == "__main__":
     # embedding_dim = 100
     # model = SkipGramModel(vocab_size=len(dataset.vocab), embedding_dim=embedding_dim)
     # print(f"Embedding dimension: {embedding_dim}")
-    #
-    # print("\n-- W2V --")
-    # learning_rate = 0.001
-    # epochs = 1000
-    # criterion = nn.CrossEntropyLoss()
-    # optimizer = optim.Adam(model.parameters(), lr=learning_rate)
-    model_path = Path("trained/word2vec_model.pth")
+
+    print("\n-- W2V --")
+    _learning_rate = 0.0001
+    _epochs = 1000
+    # _criterion = nn.CrossEntropyLoss()
+    # _optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+    _model_path = Path("trained/word2vec_model.pth")
 
     w2v = W2V(
-        dataset=dataset,
-        # dataloader=dataloader,
+        dataset=friends_dataset,  # dataloader=dataloader,
         # model=model,
-        # criterion=criterion,
-        # optimizer=optimizer,
-        # epochs=epochs,
-        model_path=model_path,
+        # criterion=_criterion,
+        # optimizer=_optimizer,
+        # epochs=_epochs,
+        model_path=_model_path,
     )
-    # print(f"Learning rate: {learning_rate}")
-    # print(f"Epochs: {epochs}")
+    print(f"Learning rate: {_learning_rate}")
+    print(f"Epochs: {_epochs}")
 
     # print("\n-- Training --")
     # w2v.train()
     # print(f"Model trained and saved at: {model_path}")
     # print(f"Model saved at: {model_path}")
-
+    #
     # print("\n-- Saving --")
-    # w2v.save(model_path)
+    # w2v.save()
 
     print("\n-- Loading --")
     w2v.load()
 
     print("\n-- Similarity --")
-    w2v.similarity("ross", "rachel")
-    w2v.similarity("chandler", "monica")
-    w2v.similarity("chandler", "door")
-    w2v.similarity("door", "monica")
-    w2v.similarity("monica", "chandler")
+    w2v.similarity("las", "vegas")
+    w2v.similarity("central", "perk")
+    w2v.similarity("hump", "hairpiece")
+    w2v.similarity("coffee", "hairpiece")
+    w2v.similarity("coffee", "central")
